@@ -1,0 +1,10 @@
+$ cat .gitignore
+*.[oa]
+*~
+*.exe
+*.exe.manifest
+*.vshost.exe
+*.pdb
+*.suo
+TEDdownloader/obj/
+TEDdownloader/bin/Debug/srt
