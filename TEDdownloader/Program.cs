@@ -28,7 +28,7 @@ namespace TEDdownloader
             MongoServer ms = new MongoServer(mssettings);
             ms.Connect();
 
-            ms.Disconnect();
+            ms.Disconnect();  
 
 
 
