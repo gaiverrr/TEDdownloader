@@ -2,12 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using HtmlAgilityPack;
 using System.Net;
 using System.IO;
 using MongoDB.Driver;
 using MongoDB.Bson;
 using System.Collections;
+using System.Text.RegularExpressions;
+
 
 
 
@@ -72,39 +73,57 @@ namespace TEDdownloader
 
         static List<String> GeneratePageList(string langCode, string language)
         {
-            // Load the html document
-            HtmlWeb TED = new HtmlWeb();
-            String url = "http://www.ted.com";
-            StringBuilder pageLink = new StringBuilder();
-            List<String> pageList = new List<string>();
 
-            HtmlDocument linkPage = TED.Load("http://www.ted.com/talks?lang=" + langCode + "&page=1");
+            WebRequest requestToLanguagePage = WebRequest.Create("http://www.ted.com/talks?lang=" + langCode + "&page=1");
+            requestToLanguagePage.Method = "GET";
+            WebResponse response = requestToLanguagePage.GetResponse();
+            StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8);
+            string html = sr.ReadToEnd();
 
-            int countOfFiles = Convert.ToInt16((linkPage.DocumentNode.SelectNodes("//div[contains(@class, 'browser')]")[0].ChildNodes[1].InnerText).Split(' ', '\t')[11]);
+            Match countMatch = Regex.Match(html, @"(?<=Showing.+of\s+)\d+(?=\s+)", RegexOptions.IgnoreCase);
+            int countOfFiles;
+            if (countMatch.Success)
+            {
+                countOfFiles = Convert.ToInt32(countMatch.Value);
+            }
+            else
+            {
+                countOfFiles = 0;
+                Console.WriteLine("countOfFiles value parsing error");
+            }
+            Console.WriteLine("Count of video files in {0} language are {1}", language, countOfFiles);
 
-            Console.WriteLine("Count of video files in {0} language are {1}", language, countOfFiles); 
+            
             int countOfPage;
             if (countOfFiles % 10 == 0)
                 countOfPage = countOfFiles / 10;
             else
                 countOfPage = (countOfFiles / 10) + 1;
-            
-            countOfPage = 1;
-            
+
+            countOfPage = 2; //For testing needs
+
+            StringBuilder pageLink = new StringBuilder();
+            List<String> pageList = new List<string>();
+            String url = "http://www.ted.com";
+
             for (int i = 1; i <= countOfPage; i++)
             {
-                Console.WriteLine("Current page:{0} from: {1}, remaining: {2}", i, countOfPage, countOfPage-i);
-                linkPage = TED.Load("http://www.ted.com/talks?lang=" + langCode + "&page=" + i.ToString());
+                Console.WriteLine("Current page:{0} from: {1}, remaining: {2}", i, countOfPage, countOfPage - i);
+                
+                requestToLanguagePage = WebRequest.Create("http://www.ted.com/talks?lang=" + langCode + "&page=" + i.ToString());
+                response = requestToLanguagePage.GetResponse();
+                using (sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
+                {
+                    html = sr.ReadToEnd();
+                }
+                sr.Close();
 
-                List<HtmlNode> pageLinks = null;
-                pageLinks = (from HtmlNode node in linkPage.DocumentNode.SelectNodes("//dt[contains(@class, 'thumbnail')]")
-                             where node.ChildNodes[1].Attributes["href"].Value.StartsWith("/talks/")
-                             select node).ToList();
+                MatchCollection matchLinks = Regex.Matches(html, @"(?<=<dt class=""thumbnail"">\s+<a\s+title="".+href="").+(?=""><img\s+class=""play_icon"")", RegexOptions.IgnoreCase);
 
-                foreach (HtmlNode node in pageLinks)
+                foreach (Match match in matchLinks)
                 {
                     pageLink.Append(url);
-                    pageLink.Append(node.ChildNodes[1].Attributes["href"].Value);
+                    pageLink.Append(match.Value);
                     pageList.Add(pageLink.ToString());
                     Console.WriteLine(pageLink.ToString());
                     pageLink.Clear();
