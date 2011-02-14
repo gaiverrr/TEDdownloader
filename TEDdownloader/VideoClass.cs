@@ -57,41 +57,6 @@ namespace TEDdownloader
 
             string srtFileName = Url.Split('/')[6].Remove(Url.Split('/')[6].Length - 5) + ".srt";
 
-            StreamWriter sw; // объект потока для записи
-            if (!File.Exists(srtFileName))
-            {
-
-                //using (sw = new StreamWriter(srtFileName, true, Encoding.UTF8))
-                //{
-
-                //    sw.Write(SrtSubtitlesRus.ToString());
-                //    // запись сформированного списка строк
-                //    // сбрасываем буфера и даем доступ к файлу
-                //    sw.Close();
-                //}
-
-            }
-            else
-            {
-                Console.WriteLine("Skip \n");
-
-
-
-                //using (sw = new StreamWriter("DownloadList", true, Encoding.UTF8)) ////УДАЛИТЬ КУСОК
-                //{
-
-                //    sw.Write(DownloadLink);
-                //    sw.Write("\n");
-                //    // запись сформированного списка строк
-                //    // сбрасываем буфера и даем доступ к файлу
-                //    sw.Close();
-                //} ///END
-            }
-
-           
-
-
-
         }
 
         private void GetFilename()
@@ -119,38 +84,40 @@ namespace TEDdownloader
 
         private void GetDonwloadLink()
         {
-            HtmlWeb TED = new HtmlWeb();
-            StringBuilder videoLink = new StringBuilder();
+            WebRequest requestToVideoPage = WebRequest.Create(Url);
+            requestToVideoPage.Method = "GET";
+            WebResponse response = requestToVideoPage.GetResponse();
+            StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8);
+            string html = sr.ReadToEnd();
 
-            HtmlDocument videoPage = TED.Load(Url);
-            List<HtmlNode> videoLinks = null;
-            videoLinks = (from HtmlNode node in videoPage.DocumentNode.SelectNodes("//a[@href]")
-                          where node.Name == "a"
-                          && node.Attributes["href"].Value.StartsWith("/talks/download/video")
-                          select node).ToList();
-            videoLink.Append("http://www.ted.com");
-            if (videoLinks.Count > 3)    //Shit!!!!!!!!!!!!!!!!!
+            //This regexp get a Introduration variable from page's html
+            Match durationMatch = Regex.Match(html, @"(?<=introDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
+            if (durationMatch.Success)
             {
-                videoLink.Append(videoLinks[2].Attributes["href"].Value);
-
+                IntroDuration = Convert.ToInt32(durationMatch.Value);
             }
             else
             {
-                videoLink.Append(videoLinks[1].Attributes["href"].Value);
+                Console.WriteLine("IntroDuration value parsin error");
             }
 
+            
+            //Get a hight resolution mp4 file if avilable. If doesn't get normally resolution.
+            StringBuilder videoLink = new StringBuilder();
+            videoLink.Append("http://www.ted.com");
+
+            MatchCollection links = Regex.Matches(html,@"/talks/download/video(.*?)(?="")" ,RegexOptions.IgnoreCase);
+            if (links.Count == 3)
+            {
+                videoLink.Append(links[2].Value);
+            } 
+            else if (links.Count == 2 || links.Count == 1)
+            {
+                videoLink.Append(links[0].Value);
+            }
+            
             DownloadLink = videoLink.ToString();
-            videoLink.Clear();
-
-
-            videoLinks = (from HtmlNode node in videoPage.DocumentNode.SelectNodes("//script[@type]")
-                          where node.Name == "script"
-                          && node.Attributes["type"].Value.StartsWith("text/javascript")
-                          select node).ToList();
-            IntroDuration = Convert.ToInt32(Regex.Split(videoLinks[20].InnerHtml, ";introDuration=")[1].Split('&')[0]);
             return;
-
-
         }
 
         private void GetId()
@@ -161,7 +128,7 @@ namespace TEDdownloader
 
         private string GetJsonSubtitles(String id, String language)
         {
-            string _jsonSubtitles;
+            string jsonSubtitles;
 
             SubtitlesUrl = "http://www.ted.com/talks/subtitles/id/" + id + "/lang/" + language;
 
@@ -170,11 +137,11 @@ namespace TEDdownloader
             request.Method = "GET";
             WebResponse response = request.GetResponse();
             StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8);
-            _jsonSubtitles = sr.ReadToEnd();
+            jsonSubtitles = sr.ReadToEnd();
             sr.Close();
             response.Close();
 
-            return _jsonSubtitles;
+            return jsonSubtitles;
         }
 
         private string ConvertJsonSubtitlesToSrt(String JsonSubtitles, int introDuration)
@@ -221,7 +188,6 @@ namespace TEDdownloader
         {
             Console.WriteLine("url={0}", Url);
             Console.WriteLine("downloadLink={0}", DownloadLink);
-            //Console.WriteLine("language={0}", Language);
             Console.WriteLine("SubtitlesUrl={0}", SubtitlesUrl);
             if (JsonSubtitlesRus == null)
                 Console.WriteLine("jsonSubtitlesLength={0}", "");
@@ -234,27 +200,36 @@ namespace TEDdownloader
 
             Console.WriteLine("id={0}", Id);
             Console.WriteLine("duration={0}", IntroDuration.ToString());
-
+            Console.WriteLine("---------------------------------------------------------------------------");
             return base.ToString();
         }
 
-        public void SaveSrtToFile(string path)
+        public void SaveSrtToFile(string folder)
         {
-            StreamWriter sw; // объект потока для записи
+            
             string srtFilename = Filename.Split('.')[0];
-
-            using (sw = new StreamWriter(path + srtFilename + ".srt", true, Encoding.UTF8))
+            string directoryPath = Directory.GetCurrentDirectory() + folder;
+            Directory.CreateDirectory(directoryPath);
+            if (Directory.Exists(directoryPath))
             {
-                 sw.Write(SrtSubtitlesRus);
+                StreamWriter sw; // объект потока для записи
+                using (sw = new StreamWriter(directoryPath + srtFilename + ".srt", true, Encoding.UTF8))
+                {
+                    sw.Write(SrtSubtitlesRus);
+                }
+                sw.Close();
             }
-            sw.Close();
+            else
+            {
+                Console.WriteLine("Error");   
+            }
         }
 
-        public void SaveDonwloadLinkToFile(string path)
+        public void SaveDonwloadLinkToFile(string folder)
         {
             StreamWriter sw; // объект потока для записи
             
-            using (sw = new StreamWriter(path, true, Encoding.UTF8))
+            using (sw = new StreamWriter(folder, true, Encoding.UTF8))
             {
                 sw.Write(DownloadLink);
                 sw.Write("\n");
