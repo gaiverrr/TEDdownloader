@@ -16,29 +16,28 @@ namespace TEDdownloader
 
         private String Id { get; set; }
         private String Url { get; set; }
+        private String Language { get; set; }
+        private String LanguageCode { get; set; }
         private String Filename { get; set; }
         private String DownloadLink {get; set; }
-        private String JsonSubtitlesRus { get; set; }
-        private String SrtSubtitlesRus { get; set; }
-        private String JsonSubtitlesEng { get; set; }
-        private String SrtSubtitlesEng { get; set; }
+        private String JsonSubtitles { get; set; }
+        private String SrtSubtitles { get; set; }
         private String VideoFormat { get; set; }
         private String SubtitlesUrl { get; set; }
-        
         private int IntroDuration { get; set; }
 
 
-        public VideoClass(String url)
+        public VideoClass(string url, string language, string langCode)
         {
             Url = url;
             DownloadLink = null;
-            JsonSubtitlesRus = null;
-            SrtSubtitlesRus = null;
-            JsonSubtitlesEng = null;
-            SrtSubtitlesEng = null;
+            JsonSubtitles = null;
+            SrtSubtitles = null;
             Id = null;
             Filename = null;
             IntroDuration = 0;
+            Language = language;
+            LanguageCode = langCode;
         }
 
         public void GetInformation()
@@ -48,11 +47,9 @@ namespace TEDdownloader
             GetDonwloadLink();
             GetFilename();
             GetId();
-            
-            JsonSubtitlesRus = GetJsonSubtitles(Id, "rus");
-            JsonSubtitlesEng = GetJsonSubtitles(Id, "eng");
-            SrtSubtitlesRus = ConvertJsonSubtitlesToSrt(JsonSubtitlesRus, IntroDuration);
-            SrtSubtitlesEng = ConvertJsonSubtitlesToSrt(JsonSubtitlesEng, IntroDuration);
+
+            JsonSubtitles = GetJsonSubtitles(Id, LanguageCode);
+            SrtSubtitles = ConvertJsonSubtitlesToSrt(JsonSubtitles, IntroDuration);
 
             string srtFileName = Url.Split('/')[6].Remove(Url.Split('/')[6].Length - 5) + ".srt";
 
@@ -188,15 +185,18 @@ namespace TEDdownloader
             Console.WriteLine("url={0}", Url);
             Console.WriteLine("downloadLink={0}", DownloadLink);
             Console.WriteLine("SubtitlesUrl={0}", SubtitlesUrl);
-            if (JsonSubtitlesRus == null)
+            
+            if (JsonSubtitles == null)
                 Console.WriteLine("jsonSubtitlesLength={0}", "");
             else
-                Console.WriteLine("jsonSubtitlesLength={0}", JsonSubtitlesRus.Length.ToString());
-            if (SrtSubtitlesRus == null)
+                Console.WriteLine("jsonSubtitlesLength={0}", JsonSubtitles.Length.ToString());
+
+            if (SrtSubtitles == null)
                 Console.WriteLine("srtSubtitles={0}", "");
             else
-                Console.WriteLine("srtSubtitles={0}", SrtSubtitlesRus.Length.ToString());
+                Console.WriteLine("srtSubtitles={0}", SrtSubtitles.Length.ToString());
 
+            
             Console.WriteLine("id={0}", Id);
             Console.WriteLine("duration={0}", IntroDuration.ToString());
             Console.WriteLine("---------------------------------------------------------------------------");
@@ -214,7 +214,7 @@ namespace TEDdownloader
                 StreamWriter sw; // объект потока для записи
                 using (sw = new StreamWriter(directoryPath + srtFilename + ".srt", true, Encoding.UTF8))
                 {
-                    sw.Write(SrtSubtitlesRus);
+                    sw.Write(SrtSubtitles);
                 }
                 sw.Close();
             }

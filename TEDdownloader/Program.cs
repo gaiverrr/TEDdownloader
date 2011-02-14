@@ -36,7 +36,7 @@ namespace TEDdownloader
                     foreach (string str in pageList)
                     {
                         Console.WriteLine(str.ToString());
-                        VideoClass vc = new VideoClass(str);
+                        VideoClass vc = new VideoClass(str, language, args[0]);
                         vc.GetInformation();
                         vc.SaveSrtToFile(@"\srt\");
                         vc.SaveDonwloadLinkToFile(@".\srt\downloadList.txt");
