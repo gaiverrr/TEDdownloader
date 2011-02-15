@@ -41,7 +41,7 @@ namespace TEDdownloader
                         vc.SaveSrtToFile(@"\srt\");
                         vc.SaveDonwloadLinkToFile(@".\srt\downloadList.txt");
 
-                        vc.ToString();
+                        //vc.ToString();
                     }
 
                 }
@@ -100,7 +100,7 @@ namespace TEDdownloader
             else
                 countOfPage = (countOfFiles / 10) + 1;
 
-            countOfPage = 2; //For testing needs
+            countOfPage = 1; //For testing needs
 
             StringBuilder pageLink = new StringBuilder();
             List<String> pageList = new List<string>();

@@ -43,15 +43,12 @@ namespace TEDdownloader
         public void GetInformation()
         {
             
-
             GetDonwloadLink();
             GetFilename();
             GetId();
 
             JsonSubtitles = GetJsonSubtitles(Id, LanguageCode);
             SrtSubtitles = ConvertJsonSubtitlesToSrt(JsonSubtitles, IntroDuration);
-
-            string srtFileName = Url.Split('/')[6].Remove(Url.Split('/')[6].Length - 5) + ".srt";
 
         }
 
@@ -72,9 +69,6 @@ namespace TEDdownloader
             {
                 Filename = response.ResponseUri.Segments[1];
             }
-
-            
-
         }
 
 
@@ -147,19 +141,30 @@ namespace TEDdownloader
             StringBuilder resultSubtitles = new StringBuilder();
             int captionIndex = 1;
 
-            List<JObject> resultObjects = jsonSrt["captions"].Children<JObject>().ToList();
-            foreach (JObject str in resultObjects)
+            JToken jsonCaption  = jsonSrt["captions"];
+
+            if (jsonCaption != null)
             {
-                resultSubtitles.Append(captionIndex.ToString());
-                resultSubtitles.Append("\n");
-                resultSubtitles.Append(formatTime(introDuration + Convert.ToInt32(str["startTime"].ToString()))); //Start phrase time
-                resultSubtitles.Append(" --> ");
-                resultSubtitles.Append(formatTime(introDuration + Convert.ToInt32(str["startTime"].ToString()) + Convert.ToInt32(str["duration"].ToString()))); //End phrase time
-                resultSubtitles.Append("\n");
-                resultSubtitles.Append((String)str["content"]);
-                resultSubtitles.Append("\n");
-                captionIndex++;
+                List<JObject> resultObjects = jsonSrt["captions"].Children<JObject>().ToList();
+                foreach (JObject str in resultObjects)
+                {
+                    resultSubtitles.Append(captionIndex.ToString());
+                    resultSubtitles.Append("\n");
+                    resultSubtitles.Append(formatTime(introDuration + Convert.ToInt32(str["startTime"].ToString()))); //Start phrase time
+                    resultSubtitles.Append(" --> ");
+                    resultSubtitles.Append(formatTime(introDuration + Convert.ToInt32(str["startTime"].ToString()) + Convert.ToInt32(str["duration"].ToString()))); //End phrase time
+                    resultSubtitles.Append("\n");
+                    resultSubtitles.Append((String)str["content"]);
+                    resultSubtitles.Append("\n");
+                    captionIndex++;
+                }
             }
+            else
+            {
+                Console.WriteLine("Can't find subtitles on ted.com");
+                resultSubtitles.Append("null");
+            }
+
 
             return resultSubtitles.ToString();
         }
