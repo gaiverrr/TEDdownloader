@@ -1,4 +1,5 @@
-﻿using System;
+﻿#define DEBUG
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,19 +15,29 @@ namespace TEDdownloader
     class VideoClass
     {
 
-        private String Id { get; set; }
-        private String Url { get; set; }
-        private String Language { get; set; }
-        private String LanguageCode { get; set; }
-        private String Filename { get; set; }
-        private String DownloadLink {get; set; }
-        private String JsonSubtitles { get; set; }
-        private String SrtSubtitles { get; set; }
-        private String VideoFormat { get; set; }
-        private String SubtitlesUrl { get; set; }
-        private int IntroDuration { get; set; }
+        public String Id { get; set; }
+        public String Url { get; set; }
+        public String Language { get; set; }
+        public String LanguageCode { get; set; }
+        public String Filename { get; set; }
+        public String DownloadLink { get; set; }
+        public String JsonSubtitles { get; set; }
+        public String SrtSubtitles { get; set; }
+        public String VideoFormat { get; set; }
+        public String SubtitlesUrl { get; set; }
+        public int IntroDuration { get; set; }
 
-
+        public bool IsNull()
+        {
+            if (Filename == null || DownloadLink == null || SrtSubtitles == null)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
         public VideoClass(string url, string language, string langCode)
         {
             Url = url;
@@ -42,72 +53,116 @@ namespace TEDdownloader
 
         public void GetInformation()
         {
-            
-            GetDonwloadLink();
-            GetFilename();
-            GetId();
 
-            JsonSubtitles = GetJsonSubtitles(Id, LanguageCode);
-            SrtSubtitles = ConvertJsonSubtitlesToSrt(JsonSubtitles, IntroDuration);
-
+            if (GetDownloadLink())
+            {
+                GetFilename();
+                GetId();
+                JsonSubtitles = GetJsonSubtitles(Id, LanguageCode);
+                SrtSubtitles = ConvertJsonSubtitlesToSrt(JsonSubtitles, IntroDuration);
+                Console.WriteLine("{0}: finished", Filename);
+            }
+            else
+            {
+                Console.WriteLine("GedDownloadLink(): error");
+            }
         }
 
         private void GetFilename()
         {
             WebRequest request = WebRequest.Create(DownloadLink);
-            request.Method = "GET";
-            WebResponse response = request.GetResponse();
-            if (response.ResponseUri.Segments.Length == 4)
+            try
             {
-                Filename = response.ResponseUri.Segments[3];
+                using (WebResponse response = request.GetResponse())
+                {
+                    if (response.ResponseUri.Segments.Length == 4)
+                    {
+                        Filename = response.ResponseUri.Segments[3];
+                    }
+                    else if (response.ResponseUri.Segments.Length == 3)
+                    {
+                        Filename = response.ResponseUri.Segments[2];
+                    }
+                    else if (response.ResponseUri.Segments.Length == 2)
+                    {
+                        Filename = response.ResponseUri.Segments[1];
+                    }
+                }
             }
-            else if (response.ResponseUri.Segments.Length == 3)
+
+            catch (Exception e)
             {
-                Filename = response.ResponseUri.Segments[2];
+                Console.WriteLine(e.Message);
             }
-            else if (response.ResponseUri.Segments.Length == 2)
-            {
-                Filename = response.ResponseUri.Segments[1];
-            }
+            
         }
 
 
-        private void GetDonwloadLink()
+        private bool GetDownloadLink()
         {
             WebRequest requestToVideoPage = WebRequest.Create(Url);
-            requestToVideoPage.Method = "GET";
-            WebResponse response = requestToVideoPage.GetResponse();
-            StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8);
-            string html = sr.ReadToEnd();
+            try
+            {
+                string html;
+                using (WebResponse response = requestToVideoPage.GetResponse())
+                {
+                    using (StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
+                    {
+                        html = sr.ReadToEnd();
+                    }
+                }
 
-            //This regexp get a Introduration variable from page's html
-            Match durationMatch = Regex.Match(html, @"(?<=introDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
-            if (durationMatch.Success)
-            {
-                IntroDuration = Convert.ToInt32(durationMatch.Value);
-            }
-            else
-            {
-                Console.WriteLine("IntroDuration value parsin error");
+                //This regexp get a Introduration variable from page's html
+                Match durationMatch = Regex.Match(html, @"(?<=introDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
+                if (durationMatch.Success)
+                {
+                    IntroDuration = Convert.ToInt32(durationMatch.Value);
+                }
+                else
+                {
+                    Console.WriteLine("IntroDuration value parsing error");
+                }
+
+                durationMatch = Regex.Match(html, @"(?<=adDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
+                if (durationMatch.Success)
+                {
+                    IntroDuration = IntroDuration - Convert.ToInt32(durationMatch.Value);
+                }
+                else
+                {
+                    Console.WriteLine("IntroDuration value parsing error");
+                }
+
+
+                //Get a hight resolution mp4 file if avilable. If doesn't get normally resolution.
+                StringBuilder videoLink = new StringBuilder();
+                videoLink.Append("http://www.ted.com");
+
+                MatchCollection links = Regex.Matches(html, @"/talks/download/video(.*?)(?="")", RegexOptions.IgnoreCase);
+                if (links.Count == 3)
+                {
+                    videoLink.Append(links[1].Value);
+                }
+                else if (links.Count == 2 || links.Count == 1)
+                {
+                    videoLink.Append(links[0].Value);
+                }
+
+                DownloadLink = videoLink.ToString();
+                return true;
             }
 
-            
-            //Get a hight resolution mp4 file if avilable. If doesn't get normally resolution.
-            StringBuilder videoLink = new StringBuilder();
-            videoLink.Append("http://www.ted.com");
-
-            MatchCollection links = Regex.Matches(html,@"/talks/download/video(.*?)(?="")" ,RegexOptions.IgnoreCase);
-            if (links.Count == 3)
+            catch (TimeoutException e)
             {
-                videoLink.Append(links[2].Value);
-            } 
-            else if (links.Count == 2 || links.Count == 1)
-            {
-                videoLink.Append(links[0].Value);
+                Console.WriteLine(e.Message);
+                return false;
             }
-            
-            DownloadLink = videoLink.ToString();
-            return;
+
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                return false;
+            }
         }
 
         private void GetId()
@@ -122,15 +177,14 @@ namespace TEDdownloader
 
             SubtitlesUrl = "http://www.ted.com/talks/subtitles/id/" + id + "/lang/" + language;
 
-
             WebRequest request = WebRequest.Create(SubtitlesUrl);
-            request.Method = "GET";
-            WebResponse response = request.GetResponse();
-            StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8);
-            jsonSubtitles = sr.ReadToEnd();
-            sr.Close();
-            response.Close();
-
+            using (WebResponse response = request.GetResponse())
+            {
+                using (StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
+                {
+                    jsonSubtitles = sr.ReadToEnd();
+                }
+            }
             return jsonSubtitles;
         }
 
@@ -212,16 +266,14 @@ namespace TEDdownloader
         {
             
             string srtFilename = Filename.Split('.')[0];
-            string directoryPath = Directory.GetCurrentDirectory() + folder;
+            string directoryPath = Directory.GetCurrentDirectory() + folder + LanguageCode + "/";
             Directory.CreateDirectory(directoryPath);
             if (Directory.Exists(directoryPath))
             {
-                StreamWriter sw; // объект потока для записи
-                using (sw = new StreamWriter(directoryPath + srtFilename + ".srt", true, Encoding.UTF8))
+                using (StreamWriter sw = new StreamWriter(directoryPath + srtFilename + ".srt", false, Encoding.UTF8))
                 {
                     sw.Write(SrtSubtitles);
                 }
-                sw.Close();
             }
             else
             {
@@ -229,17 +281,20 @@ namespace TEDdownloader
             }
         }
 
-        public void SaveDonwloadLinkToFile(string folder)
+        public void SaveDownloadLinkToFile(string folder)
         {
-            StreamWriter sw; // объект потока для записи
-            
-            using (sw = new StreamWriter(folder, true, Encoding.UTF8))
+            string directoryPath = Directory.GetCurrentDirectory() + folder + LanguageCode + "/";
+            using (StreamWriter sw = new StreamWriter(directoryPath + "/downloadList.txt", true, Encoding.UTF8))
             {
-                sw.Write(DownloadLink);
-                sw.Write("\n");
+                lock (sw)
+                {
+                    sw.Write(DownloadLink);
+                    sw.Write("\n");
+                }
             }
-            sw.Close();
         }
+
+
    }
 
     
