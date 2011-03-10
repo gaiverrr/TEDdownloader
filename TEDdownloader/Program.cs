@@ -1,4 +1,4 @@
-﻿//#define DEBUG
+﻿#define DEBUG
 
 using System;
 using System.Collections.Generic;
@@ -18,25 +18,27 @@ namespace TEDdownloader
 
     class Program
     {
+        static int countOfErrors = 0;
+        static List<VideoClass> errorVideoList = new List<VideoClass>();
+
 
         static void Main(string[] args)
         {
 
             if (args.Length > 0)
             {
-                
-                LanguagesClass languageList = new LanguagesClass();
-                string language = languageList.GetLanguageName(args[0]);
-
-                if (language != null)
+                if (Language.IsValidLanguageCode(args[0]))
                 {
-                    string langcode = args[0];
+                    string languageCode = args[0];
+                    //languageCode = "rus";
+                    string language = Language.GetLanguage(languageCode);
+
                     Console.WriteLine("Current language: {0}", language);
                     List<String> pageList = new List<string>();
 
-#if(DEBUG)
+#if DEBUG
                     string directoryPath = Directory.GetCurrentDirectory();
-                    using (StreamReader sr = new StreamReader(directoryPath + "/urls3.txt", Encoding.UTF8))
+                    using (StreamReader sr = new StreamReader(directoryPath + "/urls_all.txt", Encoding.UTF8))
                     {
                         string url;
                         while ((url = sr.ReadLine()) != null)
@@ -45,34 +47,75 @@ namespace TEDdownloader
                         }
                     }
 #else
-                    pageList = GeneratePageList(args[0], language);
+                    pageList = GeneratePageList(languageCode);
+                    string directoryPath = Directory.GetCurrentDirectory();
+                    foreach (string str in pageList)
+                    {
+                        using (StreamWriter sw = new StreamWriter(directoryPath + "/urls4.txt", true, Encoding.UTF8))
+                        {
+                            sw.Write(str);
+                            sw.Write("\n");
+                        }
+                    }
+                    return;
+                    
 #endif
                     VideoClass vc;
                     List<VideoClass> vcList = new List<VideoClass>();
 
-                    foreach (string str in pageList)
+                    List<string> languageCodes = Language.GetAllLanguageCodes();
+
+                    foreach (string url in pageList)
                     {
-                        vc = new VideoClass(str, language, langcode);
-                        vcList.Add(vc);
+                        foreach (string lang in languageCodes)
+                        {
+                            vc = new VideoClass(url, lang);
+                            vcList.Add(vc);
+                        }
                     }
 
                     ParallelOptions parallelOptions = new ParallelOptions();
-                    parallelOptions.MaxDegreeOfParallelism = 10;
-                    Parallel.ForEach(vcList, parallelOptions, item =>
+                    parallelOptions.MaxDegreeOfParallelism = 30;
+                    Parallel.ForEach(vcList, parallelOptions, video =>
                     {
-
                         Console.WriteLine("GetInformation()");
-                        item.GetInformation();
-                        if (!item.IsNull())
+                        video.GetInformation();
+                        if (!video.IsNull())
                         {
-                            item.SaveSrtToFile(@"\srt\");
-                            item.SaveDownloadLinkToFile(@".\srt\");
+                            video.SaveSrtToFile(@"\srt\");
+                            video.SaveDownloadLinkToFile(@".\srt\");
                         }
                         else
                         {
+                            errorVideoList.Add(video);
+                            countOfErrors++;
+
+                            using (StreamWriter sw = new StreamWriter("ErrorList.txt", true, Encoding.UTF8))
+                            {
+                                lock (sw)
+                                {
+                                    sw.Write(video.Url);
+                                    sw.Write("\n");
+                                }
+                            }
                             Console.WriteLine("Empty object");
                         }
                     });
+
+                    if (errorVideoList.Count > 0)
+                    {
+                        foreach (VideoClass video in errorVideoList)
+                        {
+                            video.GetInformation();
+
+                            if (!video.IsNull())
+                            {
+                                video.SaveSrtToFile(@"\srt\");
+                                video.SaveDownloadLinkToFile(@".\srt\");
+                            }
+                        }
+                    }
+
                 }
                 else
                 {
@@ -80,13 +123,14 @@ namespace TEDdownloader
                     Console.WriteLine("You can find all languages codes on page: http://www.ted.com/pages/view/id/286");
                 }
 
+                Console.WriteLine("Count of errors: {0}", countOfErrors.ToString());
                 Console.WriteLine("Finished. Press any key.");
                 Console.ReadKey(true);
                 return;
             }
             else
             {
-                Console.WriteLine("Please launch application with language code");
+                Console.WriteLine("Please launch application with language code parametr");
                 Console.ReadKey(true);
                 return;
             }
@@ -100,10 +144,11 @@ namespace TEDdownloader
 
 
 
-        static List<String> GeneratePageList(string langCode, string language)
+        static List<String> GeneratePageList(string languageCode)
         {
 
-            WebRequest request = WebRequest.Create("http://www.ted.com/talks?lang=" + langCode + "&page=1");
+            string language = Language.GetLanguage(languageCode);
+            WebRequest request = WebRequest.Create("http://www.ted.com/talks?lang=" + languageCode + "&page=1");
             string html;
             using (WebResponse response = request.GetResponse())
             {
@@ -126,7 +171,7 @@ namespace TEDdownloader
             }
             Console.WriteLine("Count of video files in {0} language are {1}", language, countOfFiles);
 
-            
+
             int countOfPage;
             if (countOfFiles % 10 == 0)
                 countOfPage = countOfFiles / 10;
@@ -142,7 +187,7 @@ namespace TEDdownloader
             for (int i = 1; i <= countOfPage; i++)
             {
                 Console.WriteLine("Current page:{0} from: {1}, remaining: {2}", i, countOfPage, countOfPage - i);
-                request = WebRequest.Create("http://www.ted.com/talks?lang=" + langCode + "&page=" + i.ToString());
+                request = WebRequest.Create("http://www.ted.com/talks?lang=" + languageCode + "&page=" + i.ToString());
                 using (WebResponse response = request.GetResponse())
                 {
                     using (StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
@@ -151,7 +196,6 @@ namespace TEDdownloader
                     }
                 }
 
-                //Вставить исправленную версию, без /lang/
                 MatchCollection matchLinks = Regex.Matches(html, @"(?<=<dt class=""thumbnail"">\s+<a\s+title="".+href="").+(?=""><img\s+class=""play_icon"")", RegexOptions.IgnoreCase);
 
                 foreach (Match match in matchLinks)
@@ -169,6 +213,6 @@ namespace TEDdownloader
             return pageList;
         }
 
-        
+
     }
 }

@@ -2,6 +2,9 @@ $ cat .gitignore
 *.[oa]
 *~
 *.exe
+*.txt
+*.rar
+TEDdownloader/bin/Debug/*.config
 *.exe.manifest
 *.vshost.exe
 *.pdb
