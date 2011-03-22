@@ -9,16 +9,21 @@ namespace TEDdownloader
 {
     class RepositoryClass
     {
-        //private Database _db;
+        private MongoDatabase _db;
 
-        //public Database Db()
-        //{
-        //    if (_db != null) return _db;
-        //    var server = new Mongo();
-        //    server.Connect();
-        //    _db = server.GetDatabase("test");
-        //    return _db;
-        //}
+        public MongoDatabase Db()
+        {
+            if (_db != null) return _db;
+            MongoUrl url = new MongoUrl("mongodb://localhost/?safe=true");
+
+            string connectionString = "mongodb://localhost";
+            MongoServer server = MongoServer.Create(connectionString);
+
+            //var server = new MongoServer();
+            server.Connect();
+            _db = server.GetDatabase("test");
+            return _db;
+        }
 
         //public void Insert(Document document, string collectionName)
         //{

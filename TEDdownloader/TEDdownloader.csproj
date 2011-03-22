@@ -58,7 +58,9 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RepositoryClass.cs" />
+    <Compile Include="SubtitlesClass.cs" />
     <Compile Include="VideoClass.cs" />
+    <Compile Include="VideoFormatClass.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

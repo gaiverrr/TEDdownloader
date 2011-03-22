@@ -8,10 +8,12 @@ using System.Net;
 using System.IO;
 using MongoDB.Driver;
 using MongoDB.Bson;
+using MongoDB;
 using System.Collections;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+
 
 namespace TEDdownloader
 {
@@ -21,16 +23,14 @@ namespace TEDdownloader
         static int countOfErrors = 0;
         static List<VideoClass> errorVideoList = new List<VideoClass>();
 
-
         static void Main(string[] args)
         {
-
+            string connectionString = "mongodb://localhost/?safe=true";
             if (args.Length > 0)
             {
                 if (Language.IsValidLanguageCode(args[0]))
                 {
                     string languageCode = args[0];
-                    //languageCode = "rus";
                     string language = Language.GetLanguage(languageCode);
 
                     Console.WriteLine("Current language: {0}", language);
@@ -38,7 +38,7 @@ namespace TEDdownloader
 
 #if DEBUG
                     string directoryPath = Directory.GetCurrentDirectory();
-                    using (StreamReader sr = new StreamReader(directoryPath + "/urls_all.txt", Encoding.UTF8))
+                    using (StreamReader sr = new StreamReader(directoryPath + "/urls_test.txt", Encoding.UTF8))
                     {
                         string url;
                         while ((url = sr.ReadLine()) != null)
@@ -55,23 +55,43 @@ namespace TEDdownloader
                         {
                             sw.Write(str);
                             sw.Write("\n");
-                        }
-                    }
                     return;
                     
 #endif
+
+
+                    //MongoServer server = MongoServer.Create(connectionString);
+                    //server.Connect();
+                    //MongoDatabase db = server.GetDatabase("db");
+                    //MongoCollection<string> employees = db.GetCollection<string>("test");
+
+                    //MongoCollection<BsonDocument> books = db.GetCollection<BsonDocument>("test");
+                    //BsonDocument book = new BsonDocument {
+                    //    { "author", "Ernest Hemingway" },
+                    //    { "title", "For Whom the Bell Tolls" }
+                    //};
+                    //books.Insert(book);
+                    
+                    
                     VideoClass vc;
                     List<VideoClass> vcList = new List<VideoClass>();
 
                     List<string> languageCodes = Language.GetAllLanguageCodes();
 
+                    //This case for all languages
+                    //foreach (string url in pageList)
+                    //{
+                    //    foreach (string lang in languageCodes)
+                    //    {
+                    //        vc = new VideoClass(url, lang);
+                    //        vcList.Add(vc);
+                    //    }
+                    //}
+
                     foreach (string url in pageList)
                     {
-                        foreach (string lang in languageCodes)
-                        {
-                            vc = new VideoClass(url, lang);
-                            vcList.Add(vc);
-                        }
+                        vc = new VideoClass(url);
+                        vcList.Add(vc);
                     }
 
                     ParallelOptions parallelOptions = new ParallelOptions();
