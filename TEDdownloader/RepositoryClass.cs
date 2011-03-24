@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+
 using MongoDB.Driver;
 using MongoDB.Bson;
 
@@ -9,21 +10,38 @@ namespace TEDdownloader
 {
     class RepositoryClass
     {
+        private MongoServer _server;
         private MongoDatabase _db;
 
-        public MongoDatabase Db()
+        private RepositoryClass()
         {
-            if (_db != null) return _db;
-            MongoUrl url = new MongoUrl("mongodb://localhost/?safe=true");
-
             string connectionString = "mongodb://localhost";
-            MongoServer server = MongoServer.Create(connectionString);
-
-            //var server = new MongoServer();
-            server.Connect();
-            _db = server.GetDatabase("test");
-            return _db;
+            _server = MongoServer.Create(connectionString);
+            _db = _server.GetDatabase("test");
         }
+
+        private RepositoryClass(string connectionString)
+        {
+            _server = MongoServer.Create(connectionString);
+            _db = _server.GetDatabase("test");
+        }
+
+
+
+        
+        //public MongoDatabase Db()
+        //{
+        //    if (_db != null) return _db;
+        //    MongoUrl url = new MongoUrl("mongodb://localhost/?safe=true");
+
+        //    string connectionString = "mongodb://localhost";
+        //    MongoServer server = MongoServer.Create(connectionString);
+
+        //    //var server = new MongoServer();
+        //    server.Connect();
+        //    _db = server.GetDatabase("test");
+        //    return _db;
+        //}
 
         //public void Insert(Document document, string collectionName)
         //{

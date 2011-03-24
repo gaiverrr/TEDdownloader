@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 
 namespace TEDdownloader
 {
+    [Serializable]
     class VideoClass
     {
 
@@ -23,11 +24,8 @@ namespace TEDdownloader
         public String Filename { get; set; }
         public String DownloadLink { get; set; }
         
-        //public String Language { get; set; }    //
-        //public String LanguageCode { get; set; }//
-        //public String JsonSubtitles { get; set; }  //
-        //public String SrtSubtitles { get; set; }  //
-        //public String SubtitlesUrl { get; set; } //
+        public String Language { get; set; }    //
+        public String LanguageCode { get; set; }//
         public String VideoFormat { get; set; }
 
         public BlockingCollection<SubtitlesClass> Subtitles { get; set; }
@@ -36,27 +34,17 @@ namespace TEDdownloader
         public bool IsNull()
         {
             if (Filename == null || DownloadLink == null || Subtitles.Count == 0)
-            {
                 return true;
-            }
             else
-            {
                 return false;
-            }
         }
 
-        public VideoClass(string url)
+        public VideoClass(string url, string languageCode)
         {
             Url = url;
             Subtitles = new BlockingCollection<SubtitlesClass>();
-        //    DownloadLink = null;
-        //    JsonSubtitles = null;
-        //    SrtSubtitles = null;
-        //    Id = null;
-        //    Filename = null;
-        //    IntroDuration = 0;
-        //    Language = TEDdownloader.Language.GetLanguage(languageCode);
-        //    LanguageCode = languageCode;
+            Language = TEDdownloader.Language.GetLanguage(languageCode);
+            LanguageCode = languageCode;
         }
 
         public void GetInformation()
@@ -66,10 +54,15 @@ namespace TEDdownloader
                 GetFilename();
                 if (GetId())
                 {
-                    List<string> languageCodes =  TEDdownloader.Language.GetAllLanguageCodes();
+                    List<string> languageCodes = new List<string>();
+                    if (LanguageCode == "all")
+                        languageCodes = TEDdownloader.Language.GetAllLanguageCodes();
+                    else
+                        languageCodes.Add(LanguageCode);
+                    
                     string json,srt;
                     ParallelOptions parallelOptions = new ParallelOptions();
-                    parallelOptions.MaxDegreeOfParallelism = 30;
+                    parallelOptions.MaxDegreeOfParallelism = 10;
                     Parallel.ForEach(languageCodes, parallelOptions, languageCode =>
                     {
                         json = GetJsonSubtitles(Id, languageCode);
@@ -85,12 +78,6 @@ namespace TEDdownloader
                         }
 
                     });
-                    //foreach (string languageCode in languageCodes)
-                    //{
-                    //}
-                    
-//                    JsonSubtitles = GetJsonSubtitles(Id, LanguageCode);
-//                    SrtSubtitles = ConvertJsonSubtitlesToSrt(JsonSubtitles, IntroDuration);
                 }
                 else
                 {
@@ -221,10 +208,10 @@ namespace TEDdownloader
         {
             string jsonSubtitles;
 
-            SubtitlesUrl = "http://www.ted.com/talks/subtitles/id/" + id + "/lang/" + language;
+            string subtitlesUrl = "http://www.ted.com/talks/subtitles/id/" + id + "/lang/" + language;
             try
             {
-                WebRequest request = WebRequest.Create(SubtitlesUrl);
+                WebRequest request = WebRequest.Create(subtitlesUrl);
                 using (WebResponse response = request.GetResponse())
                 {
                     using (StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
@@ -305,20 +292,6 @@ namespace TEDdownloader
         public override string ToString()
         {
             Console.WriteLine("url={0}", Url);
-            Console.WriteLine("downloadLink={0}", DownloadLink);
-            Console.WriteLine("SubtitlesUrl={0}", SubtitlesUrl);
-            
-            if (JsonSubtitles == null)
-                Console.WriteLine("jsonSubtitlesLength={0}", "");
-            else
-                Console.WriteLine("jsonSubtitlesLength={0}", JsonSubtitles.Length.ToString());
-
-            if (SrtSubtitles == null)
-                Console.WriteLine("srtSubtitles={0}", "");
-            else
-                Console.WriteLine("srtSubtitles={0}", SrtSubtitles.Length.ToString());
-
-            
             Console.WriteLine("id={0}", Id);
             Console.WriteLine("duration={0}", IntroDuration.ToString());
             Console.WriteLine("---------------------------------------------------------------------------");
@@ -330,21 +303,28 @@ namespace TEDdownloader
             try
             {
                 string srtFilename = Filename.Split('.')[0];
-                string directoryPath = Directory.GetCurrentDirectory() + folder + LanguageCode + "/";
-                Directory.CreateDirectory(directoryPath);
-                if (Directory.Exists(directoryPath))
+                string directoryPath;
+                
+                
+                foreach (SubtitlesClass subtitles in Subtitles)
                 {
-                    using (StreamWriter sw = new StreamWriter(directoryPath + srtFilename + ".srt", false, Encoding.UTF8))
+                    directoryPath = Directory.GetCurrentDirectory() + folder + subtitles.LanguageCode + "/";
+                    Directory.CreateDirectory(directoryPath);
+
+                    if (Directory.Exists(directoryPath))
                     {
-                        lock (sw)
+                        using (StreamWriter sw = new StreamWriter(directoryPath + srtFilename + ".srt", false, Encoding.UTF8))
                         {
-                            sw.Write(SrtSubtitles);
+                            lock (sw)
+                            {
+                                sw.Write(subtitles.Subtitles);
+                            }
                         }
                     }
-                }
-                else
-                {
-                    Console.WriteLine("Error");
+                    else
+                    {
+                        Console.WriteLine("Error");
+                    }
                 }
             }
 
@@ -358,15 +338,23 @@ namespace TEDdownloader
         {
             try
             {
-                string directoryPath = Directory.GetCurrentDirectory() + folder + LanguageCode + "/";
-                using (StreamWriter sw = new StreamWriter(directoryPath + "/downloadList.txt", true, Encoding.UTF8))
+                string directoryPath;
+                if (LanguageCode == "all")
+                    directoryPath = Directory.GetCurrentDirectory() + folder + "/";
+                else 
+                    directoryPath = Directory.GetCurrentDirectory() + folder + LanguageCode + "/";
+                if (Directory.Exists(directoryPath))
                 {
-                    lock (sw)
+                    using (StreamWriter sw = new StreamWriter(directoryPath + "/downloadList.txt", true, Encoding.UTF8))
                     {
-                        sw.Write(DownloadLink);
-                        sw.Write("\n");
+                        lock (sw)
+                        {
+                            sw.Write(DownloadLink);
+                            sw.Write("\n");
+                        }
                     }
                 }
+                else Console.WriteLine("Directory doesn't exist");
             }
             catch (Exception e)
             {

@@ -2,6 +2,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Net;
@@ -13,6 +14,7 @@ using System.Collections;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 
 
 namespace TEDdownloader
@@ -31,7 +33,13 @@ namespace TEDdownloader
                 if (Language.IsValidLanguageCode(args[0]))
                 {
                     string languageCode = args[0];
-                    string language = Language.GetLanguage(languageCode);
+                    languageCode = "all";
+                    string language;
+
+                    if (languageCode == "all")
+                        language = languageCode;
+                    else
+                        language = Language.GetLanguage(languageCode);
 
                     Console.WriteLine("Current language: {0}", language);
                     List<String> pageList = new List<string>();
@@ -58,8 +66,6 @@ namespace TEDdownloader
                     return;
                     
 #endif
-
-
                     //MongoServer server = MongoServer.Create(connectionString);
                     //server.Connect();
                     //MongoDatabase db = server.GetDatabase("db");
@@ -71,31 +77,17 @@ namespace TEDdownloader
                     //    { "title", "For Whom the Bell Tolls" }
                     //};
                     //books.Insert(book);
-                    
-                    
-                    VideoClass vc;
-                    List<VideoClass> vcList = new List<VideoClass>();
 
-                    List<string> languageCodes = Language.GetAllLanguageCodes();
 
-                    //This case for all languages
-                    //foreach (string url in pageList)
-                    //{
-                    //    foreach (string lang in languageCodes)
-                    //    {
-                    //        vc = new VideoClass(url, lang);
-                    //        vcList.Add(vc);
-                    //    }
-                    //}
 
+                    BlockingCollection<VideoClass> vcList = new BlockingCollection<VideoClass>();
                     foreach (string url in pageList)
                     {
-                        vc = new VideoClass(url);
-                        vcList.Add(vc);
+                        vcList.Add(new VideoClass(url, languageCode));
                     }
 
                     ParallelOptions parallelOptions = new ParallelOptions();
-                    parallelOptions.MaxDegreeOfParallelism = 30;
+                    parallelOptions.MaxDegreeOfParallelism = 10;
                     Parallel.ForEach(vcList, parallelOptions, video =>
                     {
                         Console.WriteLine("GetInformation()");
@@ -166,9 +158,11 @@ namespace TEDdownloader
 
         static List<String> GeneratePageList(string languageCode)
         {
-
-            string language = Language.GetLanguage(languageCode);
-            WebRequest request = WebRequest.Create("http://www.ted.com/talks?lang=" + languageCode + "&page=1");
+            WebRequest request;
+            if (languageCode != "all")
+                request = WebRequest.Create("http://www.ted.com/talks?lang=" + languageCode + "&page=1");
+            else
+                request = WebRequest.Create("http://www.ted.com/talks?page=1");
             string html;
             using (WebResponse response = request.GetResponse())
             {
@@ -189,7 +183,7 @@ namespace TEDdownloader
                 countOfFiles = 0;
                 Console.WriteLine("countOfFiles value parsing error");
             }
-            Console.WriteLine("Count of video files in {0} language are {1}", language, countOfFiles);
+            Console.WriteLine("Count of video files in {0} language are {1}", Language.GetLanguage(languageCode), countOfFiles);
 
 
             int countOfPage;
@@ -197,8 +191,6 @@ namespace TEDdownloader
                 countOfPage = countOfFiles / 10;
             else
                 countOfPage = (countOfFiles / 10) + 1;
-
-            //countOfPage = 1; //For testing needs
 
             StringBuilder pageLink = new StringBuilder();
             List<string> pageList = new List<string>();
