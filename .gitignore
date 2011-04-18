@@ -11,3 +11,5 @@ TEDdownloader/bin/Debug/*.config
 *.suo
 TEDdownloader/obj/
 TEDdownloader/bin/Debug/srt
+_ReSharper.TEDdownloader
+TEDdownloader.5.1.ReSharper.user

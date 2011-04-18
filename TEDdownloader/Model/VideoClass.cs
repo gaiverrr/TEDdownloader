@@ -1,7 +1,6 @@
 ﻿#define DEBUG
 using System;
 using System.Collections.Generic;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
@@ -10,24 +9,30 @@ using System.IO;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json.Linq;
 using System.Threading.Tasks;
+using Norm;
 
 
-namespace TEDdownloader
+
+namespace TEDdownloader.Model
 {
-    [Serializable]
     class VideoClass
     {
 
-        public String Id { get; set; }
+        //[MongoIdentifier]
+        //public ObjectId ID { get; set; }
+
+        [MongoIdentifier]
+        public string VideoId { get; set; }
+
         public String Url { get; set; }
         public int IntroDuration { get; set; }
         public String Filename { get; set; }
         public String DownloadLink { get; set; }
         
-        public String Language { get; set; }    //
-        public String LanguageCode { get; set; }//
+        public String Language { get; set; }    
+        public String LanguageCode { get; set; }
         public String VideoFormat { get; set; }
-
+        public String TitleName { get; set; }
         public BlockingCollection<SubtitlesClass> Subtitles { get; set; }
 
         
@@ -35,8 +40,12 @@ namespace TEDdownloader
         {
             if (Filename == null || DownloadLink == null || Subtitles.Count == 0)
                 return true;
-            else
-                return false;
+            return false;
+        }
+
+        public VideoClass()
+        {
+            Subtitles = new BlockingCollection<SubtitlesClass>();        
         }
 
         public VideoClass(string url, string languageCode)
@@ -54,30 +63,28 @@ namespace TEDdownloader
                 GetFilename();
                 if (GetId())
                 {
-                    List<string> languageCodes = new List<string>();
+                    var languageCodes = new BlockingCollection<string>();
                     if (LanguageCode == "all")
                         languageCodes = TEDdownloader.Language.GetAllLanguageCodes();
                     else
                         languageCodes.Add(LanguageCode);
-                    
-                    string json,srt;
-                    ParallelOptions parallelOptions = new ParallelOptions();
-                    parallelOptions.MaxDegreeOfParallelism = 10;
-                    Parallel.ForEach(languageCodes, parallelOptions, languageCode =>
-                    {
-                        json = GetJsonSubtitles(Id, languageCode);
-                        if (!Regex.Match(json, @"There is no translation in", RegexOptions.IgnoreCase).Success)
-                        {
-                            srt = ConvertJsonSubtitlesToSrt(json, IntroDuration);
-                            this.Subtitles.Add(new SubtitlesClass() { Subtitles = srt, LanguageCode = languageCode });
-                            Console.WriteLine("id: {0}, langCode: {1}, status: saved", Id, languageCode);
-                        }
-                        else
-                        {
-                            Console.WriteLine("id: {0}, langCode: {1}, status: no language", Id, languageCode);
-                        }
 
-                    });
+                    var parallelOptions = new ParallelOptions {MaxDegreeOfParallelism = 10};
+                    Parallel.ForEach(languageCodes, parallelOptions, languageCode =>
+                                                                         {
+                                                                             string json = GetJsonSubtitles(VideoId, languageCode);
+                                                                             if (json != null)
+                                                                             {
+                                                                                 if (!Regex.Match(json, @"There is no translation in", RegexOptions.IgnoreCase).Success)
+                                                                                 {
+                                                                                     string srt = ConvertJsonSubtitlesToSrt(json, IntroDuration);
+                                                                                     Subtitles.Add(new SubtitlesClass { Subtitles = srt, LanguageCode = languageCode });
+                                                                                     Console.WriteLine("id: {0}, langCode: {1}, status: saved", VideoId, languageCode);
+                                                                                 }
+                                                                             }
+                                                                             else
+                                                                                 Console.WriteLine("id: {0}, langCode: {1}, status: no language", VideoId, languageCode);
+                                                                         });
                 }
                 else
                 {
@@ -97,18 +104,19 @@ namespace TEDdownloader
             {
                 using (WebResponse response = request.GetResponse())
                 {
-                    if (response.ResponseUri.Segments.Length == 4)
-                    {
-                        Filename = response.ResponseUri.Segments[3];
-                    }
-                    else if (response.ResponseUri.Segments.Length == 3)
-                    {
-                        Filename = response.ResponseUri.Segments[2];
-                    }
-                    else if (response.ResponseUri.Segments.Length == 2)
-                    {
-                        Filename = response.ResponseUri.Segments[1];
-                    }
+                    if (response != null)
+                        if (response.ResponseUri.Segments.Length == 4)
+                        {
+                            Filename = response.ResponseUri.Segments[3];
+                        }
+                        else if (response.ResponseUri.Segments.Length == 3)
+                        {
+                            Filename = response.ResponseUri.Segments[2];
+                        }
+                        else if (response.ResponseUri.Segments.Length == 2)
+                        {
+                            Filename = response.ResponseUri.Segments[1];
+                        }
                 }
             }
 
@@ -125,52 +133,58 @@ namespace TEDdownloader
             WebRequest requestToVideoPage = WebRequest.Create(Url);
             try
             {
-                string html;
+                string html = null;
                 using (WebResponse response = requestToVideoPage.GetResponse())
                 {
-                    using (StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
-                    {
-                        html = sr.ReadToEnd();
-                    }
+                    if (response != null)
+                        using (var sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
+                        {
+                            html = sr.ReadToEnd();
+                        }
                 }
 
                 //This regexp get a Introduration variable from page's html
-                Match durationMatch = Regex.Match(html, @"(?<=introDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
-                if (durationMatch.Success)
+                if (html != null)
                 {
-                    IntroDuration = Convert.ToInt32(durationMatch.Value);
-                }
-                else
-                {
-                    Console.WriteLine("IntroDuration value parsing error");
-                }
+                    Match durationMatch = Regex.Match(html, @"(?<=introDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
+                    if (durationMatch.Success)
+                        IntroDuration = Convert.ToInt32(durationMatch.Value);
+                    else
+                        Console.WriteLine("IntroDuration value parsing error");
 
-                //durationMatch = Regex.Match(html, @"(?<=adDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
-                //if (durationMatch.Success)
-                //{
-                //    IntroDuration = IntroDuration - Convert.ToInt32(durationMatch.Value);
-                //}
-                //else
-                //{
-                //    Console.WriteLine("IntroDuration value parsing error");
-                //}
+                    //durationMatch = Regex.Match(html, @"(?<=adDuration:)\d+(?=,)", RegexOptions.IgnoreCase);
+                    //if (durationMatch.Success)
+                    //    IntroDuration = IntroDuration - Convert.ToInt32(durationMatch.Value);
+                    //else
+                    //    Console.WriteLine("IntroDuration value parsing error");
 
+                    durationMatch = Regex.Match(html, @"(?<=<span id=""altHeadline"">)(.*?)(?=</span></h1>)", RegexOptions.IgnoreCase);
+                    if (durationMatch.Success)
+                        TitleName = durationMatch.Value;
+                    else
+                        Console.WriteLine("Title value parsing error");
+                }
 
                 //Get a high resolution mp4 file if avilable. If doesn't get normally resolution.
-                StringBuilder videoLink = new StringBuilder();
+                var videoLink = new StringBuilder();
                 videoLink.Append("http://www.ted.com");
 
-                MatchCollection links = Regex.Matches(html, @"/talks/download/video(.*?)(?="")", RegexOptions.IgnoreCase);
-                if (links.Count == 3)
+                if (html != null)
                 {
-                    videoLink.Append(links[1].Value);
-                }
-                else if (links.Count == 2 || links.Count == 1)
-                {
-                    videoLink.Append(links[0].Value);
+                    MatchCollection links = Regex.Matches(html, @"/talks/download/video(.*?)(?="")", RegexOptions.IgnoreCase);
+                    if (links.Count == 3)
+                    {
+                        videoLink.Append(links[1].Value);
+                    }
+                    else if (links.Count == 2 || links.Count == 1)
+                    {
+                        videoLink.Append(links[0].Value);
+                    }
                 }
 
                 DownloadLink = videoLink.ToString();
+
+
                 return true;
             }
 
@@ -191,7 +205,7 @@ namespace TEDdownloader
         {
             try
             {
-                Id = (DownloadLink.Split('/'))[8];
+                VideoId = (DownloadLink.Split('/'))[8];
                 return true;
             }
 
@@ -206,7 +220,7 @@ namespace TEDdownloader
 
         private string GetJsonSubtitles(String id, String language)
         {
-            string jsonSubtitles;
+            string jsonSubtitles = null;
 
             string subtitlesUrl = "http://www.ted.com/talks/subtitles/id/" + id + "/lang/" + language;
             try
@@ -214,11 +228,14 @@ namespace TEDdownloader
                 WebRequest request = WebRequest.Create(subtitlesUrl);
                 using (WebResponse response = request.GetResponse())
                 {
-                    using (StreamReader sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
-                    {
-                        jsonSubtitles = sr.ReadToEnd();
-                    }
+                    if (response != null)
+                        using (var sr = new StreamReader(response.GetResponseStream(), System.Text.Encoding.UTF8))
+                        {
+                            jsonSubtitles = sr.ReadToEnd();
+                        }
                 }
+                if (jsonSubtitles.Length == 0)
+                    return null;
                 return jsonSubtitles;
             }
 
@@ -229,14 +246,14 @@ namespace TEDdownloader
             }
         }
 
-        private string ConvertJsonSubtitlesToSrt(string JsonSubtitles, int introDuration)
+        private string ConvertJsonSubtitlesToSrt(string jsonSubtitles, int introDuration)
         {
 
-            if (JsonSubtitles != null && JsonSubtitles.Length != 0)
+            if (!string.IsNullOrEmpty(jsonSubtitles))
             {
-                JObject jsonSrt = JObject.Parse(JsonSubtitles);
-                StringBuilder resultSubtitles = new StringBuilder();
-                int captionIndex = 1;
+                var jsonSrt = JObject.Parse(jsonSubtitles);
+                var resultSubtitles = new StringBuilder();
+                var captionIndex = 1;
 
                 JToken jsonCaption = jsonSrt["captions"];
 
@@ -265,18 +282,15 @@ namespace TEDdownloader
                 return resultSubtitles.ToString();
 
             }
-            else
-            {
-                Console.WriteLine("ConvertJsonSubtitlesToSrt(): JsonSubtitles is null object");
-                return null;
-            }
-            
+            Console.WriteLine("id: {0}, langCode: {1}, status: not saved, JsonSubtitles is null object", VideoId, LanguageCode);
+            //Console.WriteLine("ConvertJsonSubtitlesToSrt(): JsonSubtitles is null object");
+            return null;
         }
 
         private string formatTime(int time)
         {
             //String milliseconds = "0";
-            StringBuilder formattedTime = new StringBuilder();
+            var formattedTime = new StringBuilder();
 
             formattedTime.Append((time / 3600000).ToString("00")); //Hours
             formattedTime.Append(":");
@@ -292,8 +306,8 @@ namespace TEDdownloader
         public override string ToString()
         {
             Console.WriteLine("url={0}", Url);
-            Console.WriteLine("id={0}", Id);
-            Console.WriteLine("duration={0}", IntroDuration.ToString());
+            Console.WriteLine("id={0}", VideoId);
+            Console.WriteLine("duration={0}", IntroDuration);
             Console.WriteLine("---------------------------------------------------------------------------");
             return base.ToString();
         }
@@ -303,27 +317,29 @@ namespace TEDdownloader
             try
             {
                 string srtFilename = Filename.Split('.')[0];
-                string directoryPath;
-                
-                
+
+
                 foreach (SubtitlesClass subtitles in Subtitles)
                 {
-                    directoryPath = Directory.GetCurrentDirectory() + folder + subtitles.LanguageCode + "/";
-                    Directory.CreateDirectory(directoryPath);
-
-                    if (Directory.Exists(directoryPath))
+                    if (subtitles != null)
                     {
-                        using (StreamWriter sw = new StreamWriter(directoryPath + srtFilename + ".srt", false, Encoding.UTF8))
+                        string directoryPath = Directory.GetCurrentDirectory() + folder + subtitles.LanguageCode + "/";
+                        Directory.CreateDirectory(directoryPath);
+
+                        if (Directory.Exists(directoryPath))
                         {
-                            lock (sw)
+                            using (var sw = new StreamWriter(directoryPath + srtFilename + ".srt", false, Encoding.UTF8))
                             {
-                                sw.Write(subtitles.Subtitles);
+                                lock (sw)
+                                {
+                                    sw.Write(subtitles.Subtitles);
+                                }
                             }
                         }
-                    }
-                    else
-                    {
-                        Console.WriteLine("Error");
+                        else
+                        {
+                            Console.WriteLine("Error");
+                        }
                     }
                 }
             }
@@ -345,7 +361,7 @@ namespace TEDdownloader
                     directoryPath = Directory.GetCurrentDirectory() + folder + LanguageCode + "/";
                 if (Directory.Exists(directoryPath))
                 {
-                    using (StreamWriter sw = new StreamWriter(directoryPath + "/downloadList.txt", true, Encoding.UTF8))
+                    using (var sw = new StreamWriter(directoryPath + "/downloadList.txt", true, Encoding.UTF8))
                     {
                         lock (sw)
                         {
@@ -362,6 +378,7 @@ namespace TEDdownloader
 
             }
         }
+
    }
 
     

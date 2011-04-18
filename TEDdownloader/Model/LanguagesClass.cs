@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 
@@ -19,9 +20,9 @@ namespace TEDdownloader
             else return null;
         }
 
-        public static List<string> GetAllLanguageCodes()
+        public static BlockingCollection<string> GetAllLanguageCodes()
         {
-            List<string> languagesList = new List<string>();
+            BlockingCollection<string> languagesList = new BlockingCollection<string>();
             foreach (string code in languageHash.Keys)
             {
                 languagesList.Add(code);

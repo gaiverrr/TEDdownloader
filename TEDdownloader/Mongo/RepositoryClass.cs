@@ -26,6 +26,14 @@ namespace TEDdownloader
             _db = _server.GetDatabase("test");
         }
 
+        public bool InsertBsonVideo(BsonDocument videoInformation)
+        {
+            
+            
+            return true;
+        }
+
+
 
 
         
