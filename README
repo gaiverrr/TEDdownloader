@@ -1,0 +1,11 @@
+What you need for downloading subtitles
+--------------------------------------
+
+1. Compile project or go to folder TEDdownloader\bin\Release.
+2. Run TEDdownloader.exe with language code parametr. For example:
+   "TEDdownloader.exe rus" for all russian subtitles or
+   "TEDdownloader.exe alb" for all albanian subtitles or
+   "TEDdownloader.exe arm" for all armenian subtitles
+3. All language codes available on the www.ted.com/pages/view/id/286
+	
+   
